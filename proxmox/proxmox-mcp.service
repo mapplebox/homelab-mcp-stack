@@ -1,0 +1,21 @@
+[Unit]
+Description=ProxmoxMCP-Plus HTTP server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=mcp
+Group=mcp
+EnvironmentFile=/etc/proxmox-mcp/proxmox-mcp.env
+WorkingDirectory=/var/lib/proxmox-mcp
+ExecStart=/opt/proxmox-mcp/bin/proxmox-mcp-plus
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/proxmox-mcp
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

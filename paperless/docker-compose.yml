@@ -1,0 +1,15 @@
+# Paperless-ngx MCP (cubinet-code/paperless-ngx-mcp), deployed in /opt/mcp-paperless.
+# Internal only: https://mcp-paperless.int.example.com/mcp (Caddy checks the Bearer token).
+# .env (chmod 600): PAPERLESS_API_KEY (API token of a Paperless user), BEARER_TOKEN
+# Port 3000 only accepts the Caddy host, see ../common/mcp-firewall.service
+services:
+  paperless-mcp:
+    image: ghcr.io/cubinet-code/paperless-ngx-mcp:3.2.1
+    container_name: paperless-mcp
+    restart: unless-stopped
+    command: ["--http", "--port", "3000"]
+    ports: ["0.0.0.0:3000:3000"]
+    env_file: .env
+    environment:
+      PAPERLESS_URL: http://192.168.1.30:8000               # how the container reaches Paperless
+      PAPERLESS_PUBLIC_URL: https://paperless.int.example.com # used for document links Claude shows you

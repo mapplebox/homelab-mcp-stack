@@ -1,0 +1,18 @@
+# WHOOP MCP (yuridivonis/whoop-mcp-server), deployed in /opt/mcp-whoop.
+# Read-only WHOOP data for Claude (claude.ai app and Claude Code), OAuth built in.
+# Public: https://whoop.example.com behind Caddy.
+# .env (chmod 600): WHOOP_CLIENT_ID, WHOOP_CLIENT_SECRET, MCP_AUTH_PASSWORD (>= 16 chars), ENCRYPTION_SECRET
+# Port 3000 only accepts the Caddy host, see ../common/mcp-firewall.service
+services:
+  whoop-mcp:
+    image: ghcr.io/yuridivonis/whoop-mcp-server:1.5.1
+    container_name: whoop-mcp
+    restart: unless-stopped
+    ports: ["0.0.0.0:3000:3000"]
+    env_file: .env
+    environment:
+      PUBLIC_URL: https://whoop.example.com
+      WHOOP_REDIRECT_URI: https://whoop.example.com/callback
+      TRUST_PROXY: "1"   # exactly one proxy hop: Caddy
+    volumes:
+      - ./data:/data     # sign-ins and encrypted WHOOP tokens

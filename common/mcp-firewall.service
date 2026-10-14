@@ -1,0 +1,13 @@
+[Unit]
+Description=Only Caddy (192.168.1.10) may reach the MCP ports 3000 and 8080
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c "iptables -D DOCKER-USER -i eth0 -p tcp -m multiport --dports 3000,8080 ! -s 192.168.1.10 -j DROP 2>/dev/null; iptables -I DOCKER-USER -i eth0 -p tcp -m multiport --dports 3000,8080 ! -s 192.168.1.10 -j DROP"
+ExecStop=/sbin/iptables -D DOCKER-USER -i eth0 -p tcp -m multiport --dports 3000,8080 ! -s 192.168.1.10 -j DROP
+
+[Install]
+WantedBy=multi-user.target

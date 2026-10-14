@@ -1,0 +1,87 @@
+# Caddyfile snippets for MCP servers behind one Caddy reverse proxy (/etc/caddy/Caddyfile).
+#
+# The DNS challenge needs a DNS provider module. Caddy from the Debian package does not include it:
+#   caddy add-package github.com/caddy-dns/ionos
+#   caddy list-modules | grep dns.providers
+# (an apt upgrade of Caddy replaces the binary, run add-package again afterwards)
+# Other providers have their own module at https://github.com/caddy-dns
+#
+# The DNS API token comes from Caddy's environment. `systemctl edit caddy`:
+#   [Service]
+#   Environment=IONOS_API_TOKEN=<your-ionos-api-token>
+#
+# Bearer tokens (openssl rand -hex 32) are written straight into the Caddyfile, so:
+#   chown root:caddy /etc/caddy/Caddyfile && chmod 640 /etc/caddy/Caddyfile
+#
+# Placeholders: Caddy 192.168.1.10, MCP LXCs 192.168.1.21 and up, example.com.
+#
+# (int_only): certificate via DNS challenge, and only LAN + Tailscale clients.
+#   private_ranges = 192.168.0.0/16 172.16.0.0/12 10.0.0.0/8 127.0.0.1/8 fd00::/8 ::1
+#   100.64.0.0/10  = Tailscale (CGNAT range)
+# Internal sites: import int_only, then 401 unless the Bearer token matches.
+
+(int_only) {
+	tls {
+		dns ionos {env.IONOS_API_TOKEN}
+	}
+	@outside not remote_ip private_ranges 100.64.0.0/10
+	respond @outside 403
+}
+
+mcp-cal.int.example.com {
+	import int_only
+	@nokey not header Authorization "Bearer <token-from-openssl>"
+	respond @nokey 401
+	reverse_proxy 192.168.1.21:3000
+}
+
+mcp-unifi.int.example.com {
+	import int_only
+	@nokey not header Authorization "Bearer <unifi-token-from-openssl>"
+	respond @nokey 401
+	reverse_proxy 192.168.1.22:3000
+}
+
+mcp-paperless.int.example.com {
+	import int_only
+	@nokey not header Authorization "Bearer <paperless-token-from-openssl>"
+	respond @nokey 401
+	reverse_proxy 192.168.1.23:3000
+}
+
+# ProxmoxMCP-Plus checks the Bearer token (MCP_API_KEY) itself,
+# so Caddy only limits access to LAN + Tailscale and forwards.
+mcp-proxmox.int.example.com {
+	import int_only
+	reverse_proxy 192.168.1.25:8000
+}
+
+# ---------------------------------------------------------------------------
+# Public sites for claude.ai custom connectors.
+# /mcp only answers Anthropic's outbound IPv4 range, see
+# https://platform.claude.com/docs/en/api/ip-addresses (checked 2026-10-15).
+# Needs a public IPv4, a public DNS record and ports 80 + 443 forwarded to Caddy.
+# ---------------------------------------------------------------------------
+
+cal.example.com {
+	# Public OAuth front door for the claude.ai connector. MCP traffic only from Anthropic outbound IPs;
+	# the OAuth login pages stay reachable (password-protected).
+	@mcp_not_anthropic {
+		path /mcp /mcp/*
+		not remote_ip 160.79.104.0/21
+	}
+	respond @mcp_not_anthropic "Forbidden" 403
+	reverse_proxy 192.168.1.21:8080
+}
+
+# WHOOP MCP has OAuth built in, so no auth proxy in between.
+# Same allow list on /mcp, plus LAN and Tailscale for Claude Code at home.
+# Remove the private ranges from the matcher if only claude.ai should reach it.
+whoop.example.com {
+	@mcp_not_allowed {
+		path /mcp /mcp/*
+		not remote_ip 160.79.104.0/21 private_ranges 100.64.0.0/10
+	}
+	respond @mcp_not_allowed "Forbidden" 403
+	reverse_proxy 192.168.1.24:3000
+}

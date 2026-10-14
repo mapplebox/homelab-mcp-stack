@@ -1,0 +1,30 @@
+# iCloud calendar MCP (/opt/mcp-calendar)
+# caldav-mcp (CalDAV only) behind supergateway, plus an OAuth front door for claude.ai.
+services:
+  caldav-mcp:
+    build: .
+    image: local/caldav-mcp:0.10.0
+    container_name: caldav-mcp
+    restart: unless-stopped
+    ports: ["0.0.0.0:3000:3000"]
+    env_file: .env
+    environment:
+      CALDAV_BASE_URL: https://caldav.icloud.com
+      TZ: Europe/Berlin
+
+  auth-proxy:   # OAuth 2.1 front door for claude.ai custom connector
+    image: ghcr.io/sigbit/mcp-auth-proxy:v2.10.2
+    container_name: mcp-auth-proxy
+    restart: unless-stopped
+    depends_on: [caldav-mcp]
+    ports: ["0.0.0.0:8080:8080"]
+    env_file: auth.env
+    environment:
+      EXTERNAL_URL: https://cal.example.com
+      NO_AUTO_TLS: "true"
+      LISTEN: ":8080"
+      DATA_PATH: /data
+      TZ: Europe/Berlin
+    volumes:
+      - ./auth-data:/data
+    command: ["http://caldav-mcp:3000"]
